@@ -355,6 +355,8 @@ class ConnectionCloser:
 
 
 class TCPClient(_Connection):
+    _DEFAULT_TIMEOUT = object()
+    default_timeout = 10
 
     def __init__(self, address, source_address=None, spoof_source_address=None):
         super().__init__(None)
@@ -412,7 +414,7 @@ class TCPClient(_Connection):
         # some parties (cuckoo sandbox) need to hook this
         return socket.socket(family, type, proto)
 
-    def create_connection(self, timeout=None):
+    def create_connection(self, timeout: float = _DEFAULT_TIMEOUT):
         # Based on the official socket.create_connection implementation of Python 3.6.
         # https://github.com/python/cpython/blob/3cc5817cfaf5663645f4ee447eaed603d2ad290a/Lib/socket.py
 
@@ -422,8 +424,10 @@ class TCPClient(_Connection):
             sock = None
             try:
                 sock = self.makesocket(af, socktype, proto)
-                if timeout:
+                if timeout is not None and timeout is not self._DEFAULT_TIMEOUT:
                     sock.settimeout(timeout)
+                elif timeout is self._DEFAULT_TIMEOUT:
+                    sock.settimeout(self.default_timeout)
                 if self.source_address:
                     sock.bind(self.source_address)
                 if self.spoof_source_address:
