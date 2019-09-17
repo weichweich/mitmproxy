@@ -6,6 +6,7 @@ from mitmproxy import ctx
 
 # These get over-ridden by the save execution context. Keep them around so we
 # can log directly.
+
 realstdout = sys.stdout
 realstderr = sys.stderr
 
@@ -23,9 +24,9 @@ class TermLog:
 
     def log(self, e):
         if log.log_tier(e.level) == log.log_tier("error"):
-            outfile = self.outfile or realstderr
+            outfile = self.outfile if self.outfile else realstderr
         else:
-            outfile = self.outfile or realstdout
+            outfile = self.outfile if self.outfile else realstdout
 
         if log.log_tier(ctx.options.termlog_verbosity) >= log.log_tier(e.level):
             click.secho(
