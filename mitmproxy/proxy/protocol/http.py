@@ -158,9 +158,7 @@ def validate_request_form(mode, request):
 
 class HttpLayer(base.Layer):
 
-    if False:
-        # mypy type hints
-        server_conn: connections.ServerConnection = None
+    server_conn: connections.ServerConnection
 
     def __init__(self, ctx, mode):
         super().__init__(ctx)

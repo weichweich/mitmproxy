@@ -7,7 +7,7 @@ import threading
 import time
 import traceback
 
-from typing import Optional  # noqa
+from typing import Optional, Union  # noqa
 
 from mitmproxy.net import tls
 
@@ -221,10 +221,9 @@ def ssl_read_select(rlist, timeout):
     Returns:
         subset of rlist which is ready for reading.
     """
-    return [
-        conn for conn in rlist
-        if isinstance(conn, SSL.Connection) and conn.pending() > 0
-    ] or select.select(rlist, (), (), timeout)[0]
+    return ([conn for conn in rlist if
+             isinstance(conn, SSL.Connection) and conn.pending() > 0]
+            or select.select(rlist, (), (), timeout)[0])
 
 
 def close_socket(sock):
@@ -273,7 +272,6 @@ def close_socket(sock):
 
 
 class _Connection:
-
     rbufsize = -1
     wbufsize = -1
 
@@ -356,7 +354,6 @@ class ConnectionCloser:
 
 class TCPClient(_Connection):
     _DEFAULT_TIMEOUT = object()
-    default_timeout = 10
 
     def __init__(self, address, source_address=None, spoof_source_address=None):
         super().__init__(None)
@@ -366,9 +363,11 @@ class TCPClient(_Connection):
         self.server_certs = []
         self.sni = None
         self.spoof_source_address = spoof_source_address
+        self.timeout: Union[float, object] = self._DEFAULT_TIMEOUT
 
     @property
-    def ssl_verification_error(self) -> Optional[exceptions.InvalidCertificateException]:
+    def ssl_verification_error(self) -> Optional[
+            exceptions.InvalidCertificateException]:
         return getattr(self.connection, "cert_error", None)
 
     def close(self):
@@ -398,7 +397,8 @@ class TCPClient(_Connection):
             if self.ssl_verification_error:
                 raise self.ssl_verification_error
             else:
-                raise exceptions.TlsException("SSL handshake error: %s" % repr(v))
+                raise exceptions.TlsException(
+                    "SSL handshake error: %s" % repr(v))
 
         self.cert = certs.Cert(self.connection.get_peer_certificate())
 
@@ -414,26 +414,35 @@ class TCPClient(_Connection):
         # some parties (cuckoo sandbox) need to hook this
         return socket.socket(family, type, proto)
 
-    def create_connection(self, timeout: float = _DEFAULT_TIMEOUT):
+    def create_connection(self,
+                          timeout: Union[float, object] = _DEFAULT_TIMEOUT):
         # Based on the official socket.create_connection implementation of Python 3.6.
         # https://github.com/python/cpython/blob/3cc5817cfaf5663645f4ee447eaed603d2ad290a/Lib/socket.py
 
         err = None
-        for res in socket.getaddrinfo(self.address[0], self.address[1], 0, socket.SOCK_STREAM):
+        for res in socket.getaddrinfo(self.address[0], self.address[1], 0,
+                                      socket.SOCK_STREAM):
             af, socktype, proto, canonname, sa = res
             sock = None
             try:
                 sock = self.makesocket(af, socktype, proto)
-                if timeout is not None and timeout is not self._DEFAULT_TIMEOUT:
+
+                # timeout hierarchy: 1. parameter, 2. self.timeout,
+                # 3. default socket timeout
+                if timeout is not self._DEFAULT_TIMEOUT:
                     sock.settimeout(timeout)
-                elif timeout is self._DEFAULT_TIMEOUT:
-                    sock.settimeout(self.default_timeout)
+                elif self.timeout is not self._DEFAULT_TIMEOUT:
+                    sock.settimeout(self.timeout)
+
                 if self.source_address:
                     sock.bind(self.source_address)
                 if self.spoof_source_address:
                     try:
-                        if not sock.getsockopt(socket.SOL_IP, socket.IP_TRANSPARENT):
-                            sock.setsockopt(socket.SOL_IP, socket.IP_TRANSPARENT, 1)  # pragma: windows no cover  pragma: osx no cover
+                        if not sock.getsockopt(socket.SOL_IP,
+                                               socket.IP_TRANSPARENT):
+                            sock.setsockopt(socket.SOL_IP,
+                                            socket.IP_TRANSPARENT,
+                                            1)  # pragma: windows no cover  pragma: osx no cover
                     except Exception as e:
                         # socket.IP_TRANSPARENT might not be available on every OS and Python version
                         if sock is not None:
@@ -452,7 +461,8 @@ class TCPClient(_Connection):
         if err is not None:
             raise err
         else:
-            raise socket.error("getaddrinfo returns an empty list")  # pragma: no cover
+            raise socket.error(
+                "getaddrinfo returns an empty list")  # pragma: no cover
 
     def connect(self):
         try:
@@ -468,11 +478,12 @@ class TCPClient(_Connection):
         self._makefile()
         return ConnectionCloser(self)
 
-    def settimeout(self, n):
+    def settimeout(self, n: float):
+        self.timeout = n
         self.connection.settimeout(n)
 
     def gettimeout(self):
-        return self.connection.gettimeout()
+        return self.timeout
 
     def get_alpn_proto_negotiated(self):
         if self.tls_established:
@@ -482,7 +493,6 @@ class TCPClient(_Connection):
 
 
 class BaseHandler(_Connection):
-
     """
         The instantiator is expected to call the handle() and finish() methods.
     """
@@ -557,7 +567,8 @@ class TCPServer:
         self.__shutdown_request = False
 
         if self.address[0] == 'localhost':
-            raise socket.error("Binding to 'localhost' is prohibited. Please use '::1' or '127.0.0.1' directly.")
+            raise socket.error(
+                "Binding to 'localhost' is prohibited. Please use '::1' or '127.0.0.1' directly.")
 
         self.socket = None
 
@@ -646,11 +657,13 @@ class TCPServer:
             exc = str(traceback.format_exc())
             print(u'-' * 40, file=fp)
             print(
-                u"Error in processing of request from %s" % repr(client_address), file=fp)
+                u"Error in processing of request from %s" % repr(
+                    client_address), file=fp)
             print(exc, file=fp)
             print(u'-' * 40, file=fp)
 
-    def handle_client_connection(self, conn, client_address):  # pragma: no cover
+    def handle_client_connection(self, conn,
+                                 client_address):  # pragma: no cover
         """
             Called after client connection.
         """
