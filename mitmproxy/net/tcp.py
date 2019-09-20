@@ -480,7 +480,8 @@ class TCPClient(_Connection):
 
     def settimeout(self, n: float):
         self.timeout = n
-        self.connection.settimeout(n)
+        if self.connection:
+            self.connection.settimeout(n)
 
     def gettimeout(self):
         return self.timeout
