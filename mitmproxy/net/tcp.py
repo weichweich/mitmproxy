@@ -484,7 +484,10 @@ class TCPClient(_Connection):
             self.connection.settimeout(n)
 
     def gettimeout(self):
-        return self.timeout
+        if self.timeout is self._DEFAULT_TIMEOUT:
+            return socket.getdefaulttimeout()
+        else:
+            return self.timeout
 
     def get_alpn_proto_negotiated(self):
         if self.tls_established:
